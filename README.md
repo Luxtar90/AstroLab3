@@ -281,17 +281,37 @@ Este flujo de trabajo refleja la secuencia típica de cálculos realizados en un
 
 Este proyecto está licenciado bajo la Licencia MIT - consulta el archivo LICENSE para más detalles.
 
+# Anexos
 
+A continuación se muestran los anexos del proyecto:
 
+## Anexo 1
+![Anexo 1](https://github.com/user-attachments/assets/a8ae7079-8a36-4f04-9a11-21089cc16144)
 
-anexos!!!!
-![image](https://github.com/user-attachments/assets/a8ae7079-8a36-4f04-9a11-21089cc16144)
-![image](https://github.com/user-attachments/assets/2ae6440e-ceae-43a8-a1be-0de4b8d3d6e8)
-![image](https://github.com/user-attachments/assets/5aae7a1d-181a-4f8b-aa95-c84d8438dd52)
-![image](https://github.com/user-attachments/assets/35ed9d42-d5f1-4de7-8c92-3a16aadbbfc5)
-![image](https://github.com/user-attachments/assets/e41aff2f-cbb7-4469-a0e0-6b63b7fb1888)
-![image](https://github.com/user-attachments/assets/909aeff0-e6a0-4848-b3ef-b2f2210fee81)
-![image](https://github.com/user-attachments/assets/84a58f3c-491c-4102-a044-d1204b7611cb)
-![image](https://github.com/user-attachments/assets/08d87ad4-ed74-4047-89b3-ecdff41affdf)
-![image](https://github.com/user-attachments/assets/18214081-e7ed-4cba-bb76-ab17961a94e3)
-![image](https://github.com/user-attachments/assets/dad24d55-55ae-48cc-be3e-71e2b4c227dc)
+## Anexo 2
+![Anexo 2](https://github.com/user-attachments/assets/2ae6440e-ceae-43a8-a1be-0de4b8d3d6e8)
+
+## Anexo 3
+![Anexo 3](https://github.com/user-attachments/assets/5aae7a1d-181a-4f8b-aa95-c84d8438dd52)
+
+## Anexo 4
+![Anexo 4](https://github.com/user-attachments/assets/35ed9d42-d5f1-4de7-8c92-3a16aadbbfc5)
+
+## Anexo 5
+![Anexo 5](https://github.com/user-attachments/assets/e41aff2f-cbb7-4469-a0e0-6b63b7fb1888)
+
+## Anexo 6
+![Anexo 6](https://github.com/user-attachments/assets/909aeff0-e6a0-4848-b3ef-b2f2210fee81)
+
+## Anexo 7
+![Anexo 7](https://github.com/user-attachments/assets/84a58f3c-491c-4102-a044-d1204b7611cb)
+
+## Anexo 8
+![Anexo 8](https://github.com/user-attachments/assets/08d87ad4-ed74-4047-89b3-ecdff41affdf)
+
+## Anexo 9
+![Anexo 9](https://github.com/user-attachments/assets/18214081-e7ed-4cba-bb76-ab17961a94e3)
+
+## Anexo 10
+![Anexo 10](https://github.com/user-attachments/assets/dad24d55-55ae-48cc-be3e-71e2b4c227dc)
+
