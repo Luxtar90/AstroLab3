@@ -280,6 +280,10 @@ Este flujo de trabajo refleja la secuencia típica de cálculos realizados en un
 ## 📄 Licencia
 
 Este proyecto está licenciado bajo la Licencia MIT - consulta el archivo LICENSE para más detalles.
+
+
+
+
 anexos!!!!
 ![image](https://github.com/user-attachments/assets/a8ae7079-8a36-4f04-9a11-21089cc16144)
 ![image](https://github.com/user-attachments/assets/2ae6440e-ceae-43a8-a1be-0de4b8d3d6e8)
