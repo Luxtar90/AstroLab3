@@ -8,6 +8,7 @@ import {
   Platform, 
   StatusBar,
   Animated,
+  Easing,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import globalStyles from '../styles/globalStyles';
@@ -61,23 +62,23 @@ const ConcentrationScreen = ({ navigation }) => {
   
   // Efecto para verificar si hay datos de masa molar disponibles
   useEffect(() => {
-    if (calculationResults.molarMass && calculationResults.formula) {
+    if (calculationResults && calculationResults.molarMass && calculationResults.formula) {
       // Actualizar el estado con los datos del contexto
       setMolarMassValue(calculationResults.molarMass);
       setFormula(calculationResults.formula);
       
       // Mostrar alerta informativa
       showAnimatedAlert(
-        `Usando masa molar de ${calculationResults.formula}: ${calculationResults.molarMass.toFixed(4)} g/mol`,
+        `Usando masa molar de ${calculationResults.formula}: ${calculationResults.molarMass ? calculationResults.molarMass.toFixed(4) : '0.0000'} g/mol`,
         'info',
         'Datos disponibles'
       );
     }
-  }, [calculationResults.molarMass, calculationResults.formula]);
+  }, [calculationResults]);
   
   // Cargar datos previos si existen
   useEffect(() => {
-    if (calculationResults.formula) {
+    if (calculationResults && calculationResults.formula) {
       setFormula(calculationResults.formula);
       
       // Si hay fórmula, intentar determinar equivalentes
@@ -96,7 +97,7 @@ const ConcentrationScreen = ({ navigation }) => {
       }
     }
     
-    if (calculationResults.molarMass) {
+    if (calculationResults && calculationResults.molarMass) {
       setMolarMassValue(calculationResults.molarMass);
     }
   }, []);

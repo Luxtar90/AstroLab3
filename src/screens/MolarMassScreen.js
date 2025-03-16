@@ -9,6 +9,7 @@ import {
   Platform, 
   StatusBar,
   Animated,
+  Easing,
   Keyboard,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';

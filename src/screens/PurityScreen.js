@@ -70,10 +70,10 @@ const PurityScreen = ({ navigation }) => {
     ]).start();
     
     // Verificar si hay resultados de masa molar disponibles
-    if (calculationResults.molarMass && calculationResults.formula) {
+    if (calculationResults && calculationResults.molarMass && calculationResults.formula) {
       setCompound(calculationResults.formula);
       setShowMolarMassInfo(true);
-      showAnimatedAlert(`Se ha cargado la fórmula ${calculationResults.formula} con masa molar ${calculationResults.molarMass.toFixed(2)} g/mol`, 'info', 'Datos de Masa Molar');
+      showAnimatedAlert(`Se ha cargado la fórmula ${calculationResults.formula} con masa molar ${calculationResults.molarMass ? calculationResults.molarMass.toFixed(2) : '0.00'} g/mol`, 'info', 'Datos de Masa Molar');
     }
   }, [fadeAnim, scaleAnim, slideAnim, calculationResults]);
   
@@ -173,7 +173,7 @@ const PurityScreen = ({ navigation }) => {
       
       // Si tenemos datos de masa molar, los usamos en el cálculo
       let mensaje = '';
-      if (calculationResults.molarMass && calculationResults.formula) {
+      if (calculationResults && calculationResults.molarMass && calculationResults.formula) {
         const masaMolar = calculationResults.molarMass;
         const formula = calculationResults.formula;
         
@@ -181,7 +181,7 @@ const PurityScreen = ({ navigation }) => {
         const masaRequerida = (concentracionDeseada * volumenDeseado * masaMolar) / (purezaReactivo * 100);
         
         setPurityPercentage(masaRequerida);
-        mensaje = `Para preparar ${volumenDeseado} mL de una solución de ${concentracionDeseada}% de ${formula} (MM: ${masaMolar.toFixed(2)} g/mol) con una pureza de ${purezaReactivo}%, se necesitan ${masaRequerida.toFixed(4)} g del reactivo.`;
+        mensaje = `Para preparar ${volumenDeseado} mL de una solución de ${concentracionDeseada}% de ${formula} (MM: ${masaMolar ? masaMolar.toFixed(2) : '0.00'} g/mol) con una pureza de ${purezaReactivo}%, se necesitan ${masaRequerida.toFixed(4)} g del reactivo.`;
       } else {
         // Cálculo básico sin masa molar
         const masaRequerida = (concentracionDeseada * volumenDeseado) / purezaReactivo;
@@ -382,7 +382,11 @@ const PurityScreen = ({ navigation }) => {
                 {showMolarMassInfo && (
                   <TouchableOpacity
                     onPress={() => {
-                      showAnimatedAlert(`Usando fórmula ${calculationResults.formula} con masa molar ${calculationResults.molarMass.toFixed(2)} g/mol para los cálculos`, 'info', 'Información');
+                      if (calculationResults && calculationResults.molarMass && calculationResults.formula) {
+                        showAnimatedAlert(`Usando fórmula ${calculationResults.formula} con masa molar ${calculationResults.molarMass ? calculationResults.molarMass.toFixed(2) : '0.00'} g/mol para los cálculos`, 'info', 'Información');
+                      } else {
+                        showAnimatedAlert('No hay datos de masa molar disponibles. Ve a la calculadora de masa molar primero.', 'warning', 'Sin Datos');
+                      }
                     }}
                     style={{
                       flexDirection: 'row',
@@ -396,7 +400,9 @@ const PurityScreen = ({ navigation }) => {
                       color: isDarkMode ? '#FFFFFF' : '#4a90e2',
                       marginLeft: 5,
                     }}>
-                      Usando {calculationResults.formula} ({calculationResults.molarMass.toFixed(2)} g/mol)
+                      {calculationResults && calculationResults.formula && calculationResults.molarMass ? 
+                        `Usando ${calculationResults.formula} (${calculationResults.molarMass ? calculationResults.molarMass.toFixed(2) : '0.00'} g/mol)` : 
+                        'Sin datos de masa molar'}
                     </Text>
                   </TouchableOpacity>
                 )}
@@ -464,7 +470,7 @@ const PurityScreen = ({ navigation }) => {
                       textAlign: 'center',
                     }}
                   >
-                    {calculationResults.formula ? `Masa de ${calculationResults.formula} necesaria:` : 'Masa necesaria:'}
+                    {calculationResults && calculationResults.formula ? `Masa de ${calculationResults.formula} necesaria:` : 'Masa necesaria:'}
                   </Text>
                   <Text
                     style={{
@@ -547,7 +553,7 @@ const PurityScreen = ({ navigation }) => {
                       flexDirection: 'row',
                       justifyContent: 'space-between',
                       alignItems: 'center',
-                      marginBottom: calculationResults.molarMass ? globalStyles.spacing.small : 0,
+                      marginBottom: calculationResults && calculationResults.molarMass ? globalStyles.spacing.small : 0,
                     }}
                   >
                     <Text
@@ -569,7 +575,7 @@ const PurityScreen = ({ navigation }) => {
                     </Text>
                   </View>
 
-                  {calculationResults.molarMass && (
+                  {calculationResults && calculationResults.molarMass && (
                     <View
                       style={{
                         flexDirection: 'row',
@@ -592,7 +598,7 @@ const PurityScreen = ({ navigation }) => {
                           color: isDarkMode ? '#FFFFFF' : themeColors.text,
                         }}
                       >
-                        {calculationResults.molarMass.toFixed(2)} g/mol
+                        {calculationResults.molarMass ? calculationResults.molarMass.toFixed(2) : '0.00'} g/mol
                       </Text>
                     </View>
                   )}
@@ -617,7 +623,7 @@ const PurityScreen = ({ navigation }) => {
                       textAlign: 'center',
                     }}
                   >
-                    {calculationResults.molarMass 
+                    {calculationResults && calculationResults.molarMass 
                       ? `Fórmula: Masa (g) = (Conc. (%) × Vol. (mL) × MM (g/mol)) / (Pureza (%) × 100)`
                       : `Fórmula: Masa (g) = (Conc. (%) × Vol. (mL)) / Pureza (%)`}
                   </Text>

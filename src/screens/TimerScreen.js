@@ -43,6 +43,7 @@ const TimerScreen = ({ navigation }) => {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
   const timerAnim = useRef(new Animated.Value(1)).current;
+  const loopAnimationRef = useRef(null);
   
   // Obtener el tema actual y el contexto de timer
   const { isDarkMode, themeColors } = useTheme();
@@ -110,7 +111,7 @@ const TimerScreen = ({ navigation }) => {
     }
     
     // Animar el timer
-    Animated.loop(
+    const loopAnimation = Animated.loop(
       Animated.sequence([
         Animated.timing(timerAnim, {
           toValue: 1.05,
@@ -123,7 +124,13 @@ const TimerScreen = ({ navigation }) => {
           useNativeDriver: true,
         }),
       ])
-    ).start();
+    );
+    
+    // Guardar la referencia a la animación en bucle
+    loopAnimationRef.current = loopAnimation;
+    
+    // Iniciar la animación
+    loopAnimation.start();
     
     // Iniciar el intervalo del timer
     timerInterval.current = setInterval(() => {
@@ -166,7 +173,15 @@ const TimerScreen = ({ navigation }) => {
       clearInterval(timerInterval.current);
       setTimerPaused(true);
       setTimerRunning(false);
-      Animated.loop(timerAnim).stop();
+      
+      // Detener la animación usando la referencia guardada
+      try {
+        if (loopAnimationRef.current) {
+          loopAnimationRef.current.stop();
+        }
+      } catch (error) {
+        console.log('Error al detener la animación:', error);
+      }
     }
   };
   
@@ -202,9 +217,20 @@ const TimerScreen = ({ navigation }) => {
     setTimerMinutes(0);
     setTimerHours(0);
     
-    // Detener la animación
-    Animated.loop(timerAnim).stop();
-    timerAnim.setValue(1);
+    // Detener la animación usando la referencia guardada
+    try {
+      if (loopAnimationRef.current) {
+        loopAnimationRef.current.stop();
+        loopAnimationRef.current = null;
+      }
+    } catch (error) {
+      console.log('Error al detener la animación:', error);
+    }
+    
+    // Restablecer el valor de la animación
+    if (timerAnim) {
+      timerAnim.setValue(1);
+    }
   };
   
   // Función para formatear el tiempo
