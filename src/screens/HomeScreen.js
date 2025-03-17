@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { 
   View, 
   Text, 
@@ -13,12 +13,17 @@ import { LinearGradient } from 'expo-linear-gradient';
 import { MaterialIcons } from '@expo/vector-icons';
 import { useTheme } from '../context/ThemeContext';
 import globalStyles from '../styles/globalStyles';
+import FloatingActionButton from '../components/FloatingActionButton';
+import AstroBotChatModal from '../components/AstroBotChatModal';
 
 const HomeScreen = ({ navigation }) => {
   // Referencias para animaciones
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
   const translateYAnim = useRef(new Animated.Value(20)).current;
+  
+  // Estado para el modal de chat
+  const [showAstroBotModal, setShowAstroBotModal] = useState(false);
   
   // Obtener el tema actual
   const { isDarkMode, toggleTheme } = useTheme();
@@ -237,6 +242,16 @@ const HomeScreen = ({ navigation }) => {
         </TouchableOpacity>
       </Animated.View>
     );
+  };
+  
+  // Función para abrir el modal de AstroBot
+  const handleOpenAstroBot = () => {
+    setShowAstroBotModal(true);
+  };
+
+  // Función para cerrar el modal de AstroBot
+  const handleCloseAstroBot = () => {
+    setShowAstroBotModal(false);
   };
   
   return (
@@ -480,7 +495,33 @@ const HomeScreen = ({ navigation }) => {
             </View>
           </Animated.View>
         </ScrollView>
+        
+        {/* Botón de chat con AstroBot */}
+        <FloatingActionButton
+          icon="science"
+          onPress={handleOpenAstroBot}
+          position="bottomRight"
+          style={{ 
+            backgroundColor: themeColors.accent,
+            bottom: 30,
+            right: 30,
+            elevation: 8,
+            shadowColor: "#000",
+            shadowOffset: { width: 0, height: 4 },
+            shadowOpacity: 0.3,
+            shadowRadius: 4.65,
+          }}
+          size={56}
+          iconSize={28}
+        />
       </LinearGradient>
+      
+      {/* Modal de chat con AstroBot */}
+      <AstroBotChatModal
+        isVisible={showAstroBotModal}
+        onClose={handleCloseAstroBot}
+        theme={isDarkMode ? 'dark' : 'light'}
+      />
     </View>
   );
 };
