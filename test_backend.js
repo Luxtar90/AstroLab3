@@ -3,7 +3,7 @@
 
 // Usamos la IP de la máquina en la red local en lugar de localhost/127.0.0.1
 // para permitir conexiones desde dispositivos móviles
-const API_BASE_URL = 'http://192.168.100.129:5000';
+const API_BASE_URL = 'http://172.18.112.1:5000';
 
 /**
  * Implementación manual de timeout para fetch

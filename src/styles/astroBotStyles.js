@@ -50,6 +50,10 @@ export const getAstroBotStyles = (theme) => {
       color: themeColors.text,
       marginLeft: globalStyles.spacing.small,
     },
+    settingsButton: {
+      padding: globalStyles.spacing.small,
+      marginLeft: globalStyles.spacing.small,
+    },
     connectionIndicator: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -269,6 +273,87 @@ export const getAstroBotStyles = (theme) => {
       marginTop: globalStyles.spacing.xs,
       textAlign: 'right',
       color: themeColors.warning,
+    },
+    
+    // Estilos del componente de configuración de conexión
+    connectionSettingsModal: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: 'rgba(0,0,0,0.5)',
+    },
+    connectionSettingsContent: {
+      width: '90%',
+      maxWidth: 500,
+      borderRadius: globalStyles.borderRadius.medium,
+      padding: globalStyles.spacing.large,
+      backgroundColor: themeColors.card,
+      ...globalStyles.shadow.medium,
+    },
+    connectionSettingsHeader: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+      marginBottom: globalStyles.spacing.large,
+    },
+    connectionSettingsTitle: {
+      fontSize: globalStyles.fontSize.large,
+      fontWeight: 'bold',
+      color: themeColors.text,
+    },
+    connectionSettingsCloseButton: {
+      padding: globalStyles.spacing.xs,
+    },
+    connectionLoadingContainer: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: globalStyles.spacing.large,
+      marginTop: globalStyles.spacing.large,
+    },
+    connectionLoadingText: {
+      marginTop: globalStyles.spacing.medium,
+      fontSize: globalStyles.fontSize.medium,
+      fontWeight: 'bold',
+      textAlign: 'center',
+      color: themeColors.text,
+    },
+    connectionLoadingSubText: {
+      marginTop: globalStyles.spacing.small,
+      fontSize: globalStyles.fontSize.small,
+      textAlign: 'center',
+      color: themeColors.textSecondary,
+      opacity: 0.8,
+    },
+    connectionStatusBox: {
+      padding: globalStyles.spacing.large,
+      borderRadius: globalStyles.borderRadius.medium,
+      borderWidth: 1,
+      marginTop: globalStyles.spacing.small,
+    },
+    connectionStatusHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+    },
+    connectionStatusTitle: {
+      marginLeft: globalStyles.spacing.small,
+      fontSize: globalStyles.fontSize.medium,
+      fontWeight: 'bold',
+    },
+    connectionStatusDescription: {
+      fontSize: globalStyles.fontSize.small,
+      lineHeight: 20,
+      color: themeColors.textSecondary,
+      marginTop: globalStyles.spacing.small,
+    },
+    connectionRetryButton: {
+      marginTop: globalStyles.spacing.medium,
+      padding: globalStyles.spacing.small,
+      borderRadius: globalStyles.borderRadius.small,
+      alignItems: 'center',
+    },
+    connectionRetryButtonText: {
+      color: 'white',
+      fontWeight: 'bold',
     },
   });
 };

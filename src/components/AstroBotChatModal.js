@@ -19,6 +19,8 @@ import * as AstroBotService from '../services/AstroBotService';
 import globalStyles from '../styles/globalStyles';
 import { getAstroBotStyles } from '../styles/astroBotStyles';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import AstroBotConnectionSettings from './AstroBotConnectionSettings';
+import { useTheme } from '../context/ThemeContext';
 
 /**
  * Componente para renderizar una burbuja de chat
@@ -140,6 +142,7 @@ const AstroBotChatModal = ({ isVisible, onClose, theme }) => {
   const [connectionStatus, setConnectionStatus] = useState({ isConnected: false });
   const [connectionCheckInProgress, setConnectionCheckInProgress] = useState(false);
   const [showConnectionError, setShowConnectionError] = useState(false);
+  const [isSettingsVisible, setIsSettingsVisible] = useState(false);
   
   // Referencias
   const flatListRef = useRef(null);
@@ -378,6 +381,8 @@ const AstroBotChatModal = ({ isVisible, onClose, theme }) => {
     scrollToBottom();
   }, [chatHistory]);
 
+  const { isDarkMode } = useTheme();
+
   return (
     <Modal
       isVisible={isVisible}
@@ -413,6 +418,12 @@ const AstroBotChatModal = ({ isVisible, onClose, theme }) => {
               <View style={styles.headerTitle}>
                 <MaterialCommunityIcons name="robot" size={24} color={themeColors.accent} />
                 <Text style={styles.title}>AstroBot</Text>
+                <TouchableOpacity 
+                  onPress={() => setIsSettingsVisible(true)}
+                  style={styles.settingsButton}
+                >
+                  <Ionicons name="settings-outline" size={20} color={themeColors.text} />
+                </TouchableOpacity>
                 <View style={styles.connectionIndicator}>
                   <View style={[styles.headerConnectionDot, { 
                     backgroundColor: connectionStatus.isConnected 
@@ -478,6 +489,10 @@ const AstroBotChatModal = ({ isVisible, onClose, theme }) => {
           </Animated.View>
         </KeyboardAvoidingView>
       </SafeAreaView>
+      <AstroBotConnectionSettings 
+        isVisible={isSettingsVisible} 
+        onClose={() => setIsSettingsVisible(false)} 
+      />
     </Modal>
   );
 };
