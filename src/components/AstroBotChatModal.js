@@ -248,13 +248,16 @@ const AstroBotChatModal = ({ isVisible, onClose, theme }) => {
       setSessionId(sessionData.sessionId);
       console.log(`Sesión iniciada: ${sessionData.sessionId}`);
       
+      // Obtener mensaje de bienvenida del backend
+      const welcomeResponse = await AstroBotService.getWelcomeMessage();
+      
       // Mensaje de bienvenida completo
       const welcomeMessage = {
         id: Date.now().toString(),
-        text: AstroBotService.getWelcomeMessage(),
+        text: welcomeResponse.text,
         isBot: true,
-        simulated: !connectionStatus.isConnected,
-        model: connectionStatus.isConnected ? "DeepSeek R1 Zero Base" : "simulación"
+        simulated: welcomeResponse.model === 'simulación',
+        model: welcomeResponse.model || 'desconocido'
       };
       
       // Mensaje adicional con sugerencias
@@ -263,7 +266,7 @@ const AstroBotChatModal = ({ isVisible, onClose, theme }) => {
         text: AstroBotService.getSuggestionsMessage(),
         isBot: true,
         simulated: !connectionStatus.isConnected,
-        model: connectionStatus.isConnected ? "DeepSeek R1 Zero Base" : "simulación"
+        model: connectionStatus.isConnected ? welcomeResponse.model : "simulación"
       };
       
       // Mostrar saludo cada vez que se abre el chat
@@ -318,27 +321,38 @@ const AstroBotChatModal = ({ isVisible, onClose, theme }) => {
       console.log('Enviando mensaje al bot:', userMessageText);
       
       // Enviar mensaje al backend
-      const response = await AstroBotService.sendMessageToAstroBot(userMessageText, sessionId);
+      const response = await AstroBotService.sendMessage(userMessageText, sessionId);
       
       // Verificar si la respuesta es válida
-      if (!response || !response.message) {
+      if (!response || !response.text) {
         throw new Error('Respuesta inválida del servidor');
       }
       
       // Registrar la longitud de la respuesta para depuración
-      console.log(`Longitud de la respuesta: ${response.message.length} caracteres`);
+      console.log(`Longitud de la respuesta: ${response.text.length} caracteres`);
       
       // Agregar respuesta del bot al chat
       const botMessage = {
         id: (Date.now() + 1).toString(),
-        text: response.message,
+        text: response.text,
         isBot: true,
-        simulated: response.simulated,
-        model: response.model || "desconocido"
+        simulated: response.model === 'simulación',
+        model: response.model || "desconocido",
+        isError: response.isError
       };
       
       setChatHistory(prevChat => [...prevChat, botMessage]);
       console.log('Respuesta recibida del bot');
+      
+      // Actualizar estado de conexión si es necesario
+      if (response.isError) {
+        setConnectionStatus(prevStatus => ({
+          ...prevStatus,
+          isConnected: false,
+          error: response.text,
+        }));
+        setShowConnectionError(true);
+      }
     } catch (error) {
       console.error('Error al enviar mensaje:', error);
       
@@ -348,7 +362,8 @@ const AstroBotChatModal = ({ isVisible, onClose, theme }) => {
         text: `Lo siento, ha ocurrido un error: ${error.message}. Por favor, intenta de nuevo más tarde.`,
         isBot: true,
         simulated: true,
-        model: "simulación"
+        model: "simulación",
+        isError: true
       };
       
       setChatHistory(prevChat => [...prevChat, errorMessage]);

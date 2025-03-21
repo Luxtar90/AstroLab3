@@ -10,7 +10,7 @@ import NetInfo from '@react-native-community/netinfo';
 let API_BASE_URL;
 
 // URL para producción - CAMBIAR ESTA URL POR LA DE TU SERVIDOR REAL EN PRODUCCIÓN
-const PRODUCTION_API_URL = 'https://tu-servidor-de-produccion.com';
+const PRODUCTION_API_URL = 'https://astroback-jfj5.onrender.com';
 
 // Puerto del servidor Flask
 const SERVER_PORT = '5000';
@@ -39,6 +39,14 @@ const LOG_LEVELS = {
   ERROR: 'ERROR',
   DEBUG: 'DEBUG'
 };
+
+// Constantes para URLs
+const LOCAL_IP = '192.168.100.129';
+const LOCAL_PORT = 5000;
+const DEPLOYED_URL = 'https://astroback-jfj5.onrender.com'; // URL proporcionada por el usuario
+const LOCAL_TIMEOUT = 5000;    // 5 segundos para conexiones locales
+const DEPLOYED_TIMEOUT = 30000; // 30 segundos para el servidor desplegado
+const FAILURES_BEFORE_SIMULATION = 3;
 
 /**
  * Función para detectar si estamos en un emulador
@@ -105,8 +113,9 @@ const getServerIP = async () => {
     if (emulator) {
       // En emuladores, usamos direcciones IP específicas
       if (Platform.OS === 'android') {
-        // En Android, el host de la máquina es 10.0.2.2 para AVD
-        return '10.0.2.2';
+        // En Android, el host de la máquina puede variar según el emulador
+        // Intentar con varias opciones comunes
+        return '10.0.2.2'; // AVD estándar
       } else if (Platform.OS === 'ios') {
         // En iOS, el host de la máquina es localhost
         return 'localhost';
@@ -133,25 +142,58 @@ const getServerIP = async () => {
 };
 
 /**
- * Función para obtener la URL base adecuada según el entorno
+ * Obtiene la URL base adecuada según el entorno
  * @returns {Promise<string>} - URL base para el API
  */
 const getAppropriateBaseUrl = async () => {
-  // En producción, usar la URL de producción
-  if (!__DEV__) {
-    return PRODUCTION_API_URL;
-  }
-  
-  // En desarrollo, detectar automáticamente la URL
   try {
+    log(LOG_LEVELS.INFO, 'Determinando URL base apropiada para API');
+    
+    // Intentar primero con la URL desplegada
+    try {
+      log(LOG_LEVELS.INFO, `Probando URL desplegada: ${DEPLOYED_URL}`);
+      const deployedResponse = await fetch(`${DEPLOYED_URL}/status`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        timeout: DEPLOYED_TIMEOUT
+      });
+      
+      if (deployedResponse.ok) {
+        log(LOG_LEVELS.INFO, `Conexión exitosa a URL desplegada: ${DEPLOYED_URL}`);
+        return DEPLOYED_URL;
+      }
+    } catch (deployedError) {
+      log(LOG_LEVELS.WARN, `No se pudo conectar a URL desplegada: ${deployedError.message}`);
+    }
+    
+    // Intentar con la IP del servidor de Flask (de los logs)
+    try {
+      const flaskServerUrl = `http://${LOCAL_IP}:${LOCAL_PORT}`;
+      log(LOG_LEVELS.INFO, `Probando IP del servidor Flask: ${flaskServerUrl}`);
+      
+      const flaskResponse = await fetch(`${flaskServerUrl}/status`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' },
+        timeout: LOCAL_TIMEOUT
+      });
+      
+      if (flaskResponse.ok) {
+        log(LOG_LEVELS.INFO, `Conexión exitosa a IP del servidor Flask: ${flaskServerUrl}`);
+        return flaskServerUrl;
+      }
+    } catch (flaskError) {
+      log(LOG_LEVELS.WARN, `No se pudo conectar a IP del servidor Flask: ${flaskError.message}`);
+    }
+    
+    // Si no se pudo conectar a ninguna URL específica, intentar determinar la IP del servidor
     const serverIP = await getServerIP();
-    return `http://${serverIP}:${SERVER_PORT}`;
+    const baseUrl = `http://${serverIP}:${LOCAL_PORT}`;
+    log(LOG_LEVELS.INFO, `Usando URL base determinada automáticamente: ${baseUrl}`);
+    
+    return baseUrl;
   } catch (error) {
-    log(LOG_LEVELS.ERROR, 'Error al obtener URL base:', error);
-    // Fallback en caso de error
-    return Platform.OS === 'android' 
-      ? `http://10.0.2.2:${SERVER_PORT}` 
-      : `http://localhost:${SERVER_PORT}`;
+    log(LOG_LEVELS.ERROR, `Error al determinar URL base: ${error.message}`);
+    throw error;
   }
 };
 
@@ -180,6 +222,7 @@ const initializeApiBaseUrl = async () => {
           // No retornamos, seguimos para detectar una URL apropiada
         } else {
           // La URL parece ser compatible con el entorno actual
+          console.log('AstroBot API URL:', API_BASE_URL);
           return;
         }
       } catch (error) {
@@ -191,6 +234,7 @@ const initializeApiBaseUrl = async () => {
     // Si no hay URL guardada o no es compatible, detectar automáticamente
     API_BASE_URL = await getAppropriateBaseUrl();
     log(LOG_LEVELS.INFO, `URL base detectada automáticamente: ${API_BASE_URL}`);
+    console.log('AstroBot API URL:', API_BASE_URL);
     
     // Guardar la URL detectada para futuras sesiones
     await AsyncStorage.setItem('API_BASE_URL', API_BASE_URL);
@@ -206,189 +250,6 @@ const initializeApiBaseUrl = async () => {
       API_BASE_URL = 'http://localhost:5000';
     }
     log(LOG_LEVELS.INFO, `URL base establecida por fallback: ${API_BASE_URL}`);
-  }
-};
-
-// Obtener el estado actual de la conexión
-export const getConnectionStatus = () => {
-  return {
-    isConnected: connectionStatus.isConnected,
-    lastChecked: connectionStatus.lastChecked,
-    lastResponseTime: connectionStatus.lastResponseTime,
-    error: connectionStatus.error,
-    isSimulationMode: simulationMode,
-    serverVersion: connectionStatus.serverVersion,
-    serverStatus: connectionStatus.serverStatus
-  };
-};
-
-// Obtiene la URL base actual de la API
-export const getApiBaseUrl = () => {
-  return API_BASE_URL;
-};
-
-// Respuestas simuladas para cuando el backend no está disponible
-const SIMULATED_RESPONSES = [
-  "Estoy funcionando en modo offline. El backend no está disponible en este momento. Puedo responder preguntas básicas sobre química, cálculos de laboratorio y diluciones, pero para funcionalidades avanzadas necesitarás conectar con el backend. Intenta reiniciar el servidor o verificar la conexión para acceder a todas las capacidades. El modelo DeepSeek R1 Zero proporciona respuestas más detalladas y precisas cuando está conectado.",
-  "Puedo responder preguntas básicas en modo offline. Para funcionalidad completa con el modelo DeepSeek R1 Zero, asegúrate de que el backend esté en ejecución. En este modo, tengo acceso a información sobre masa molar, diluciones, concentraciones, pureza de reactivos y estequiometría básica. Si necesitas cálculos más complejos o acceso a la base de datos completa, será necesario establecer conexión con el servidor.",
-  "Soy AstroBot en modo offline. Algunas funciones están limitadas sin conexión con el backend. Puedo ayudarte con conceptos fundamentales de química y cálculos básicos de laboratorio. Para obtener respuestas más precisas y personalizadas usando el modelo DeepSeek R1 Zero, te recomiendo verificar la conexión con el servidor y reiniciar la aplicación si es necesario.",
-  "El backend no está disponible. Estoy operando con capacidades reducidas. Sin embargo, puedo asistirte con información general sobre química, fórmulas básicas y conceptos de laboratorio. Para acceder a todas mis funcionalidades con DeepSeek R1 Zero, incluyendo cálculos avanzados y acceso a la base de datos completa, necesitarás establecer conexión con el servidor.",
-  "Para cálculos químicos básicos, puedo ayudarte incluso sin conexión al backend. Tengo información sobre masa molar, diluciones, concentraciones y pureza de reactivos. Si necesitas realizar cálculos más complejos o acceder a información específica de compuestos con el modelo DeepSeek R1 Zero, te recomiendo verificar la conexión con el servidor para utilizar todas mis capacidades.",
-  "Estoy en modo de simulación porque no pude conectarme al backend. Intenta reiniciar el servidor o verificar la configuración de red. Mientras tanto, puedo asistirte con información general sobre química y cálculos básicos de laboratorio. Para acceder a todas mis funcionalidades con DeepSeek R1 Zero, incluyendo análisis avanzados y respuestas personalizadas, necesitarás establecer conexión con el servidor.",
-];
-
-// Respuestas simuladas específicas para preguntas comunes
-const KEYWORD_RESPONSES = {
-  "masa molar": " La masa molar de una sustancia se calcula sumando las masas atómicas de todos los átomos que la componen, expresadas en unidades de masa atómica (uma) o gramos por mol. La masa atómica de cada elemento se encuentra en la tabla periódica de los elementos. \n\n Por ejemplo, si quieres calcular la masa molar del agua (H2O), primero sumarías las masas atómicas del hidrógeno (H) y el oxígeno (O). La masa atómica del hidrógeno es aproximadamente 1 g/mol y la del oxígeno es aproximadamente 16 g/mol. Por lo tanto, la masa molar del agua sería: 2(1 g/mol) + 1(16 g/mol) = 18 g/mol. \n\n Este valor representa la masa de un mol de moléculas de agua. Para compuestos más complejos, el proceso es el mismo: multiplica la masa atómica de cada elemento por el número de átomos de ese elemento en la molécula, y luego suma todos estos valores.",
-  
-  "dilución": " La fórmula para calcular la dilución es la siguiente:\n\n C1 × V1 = C2 × V2\n\nDonde:\n- C1 es la concentración inicial de la solución (por ejemplo, en moles por litro).\n- V1 es el volumen inicial de la solución que se va a diluir.\n- C2 es la concentración final deseada de la solución diluida.\n- V2 es el volumen final de la solución diluida que se quiere preparar.\n\n Para calcular la dilución, puedes despejar cualquiera de las variables de la fórmula en función de las otras tres. Por ejemplo, si conoces la concentración inicial (C1), el volumen inicial (V1) y la concentración final deseada (C2), puedes calcular el volumen final (V2) utilizando la fórmula V2 = (C1 × V1) / C2. \n\n Esta fórmula es fundamental en el laboratorio para preparar soluciones con concentraciones específicas a partir de soluciones más concentradas. Es importante recordar que las unidades de concentración deben ser consistentes en ambos lados de la ecuación.",
-  
-  "concentración": " La concentración de una solución puede expresarse de varias formas, cada una con aplicaciones específicas en química y análisis de laboratorio:\n\n1. Molaridad (M): Moles de soluto por litro de solución (mol/L). Es la medida más común en química para expresar concentración.\n\n2. Molalidad (m): Moles de soluto por kilogramo de solvente (mol/kg). Útil para propiedades coligativas que dependen de la proporción de partículas.\n\n3. Fracción molar (X): Moles de un componente dividido por los moles totales de todos los componentes. Se utiliza en cálculos termodinámicos.\n\n4. Porcentaje en masa (%m/m): Masa de soluto dividida por la masa total de la solución, multiplicada por 100. Común en aplicaciones industriales.\n\n5. Porcentaje en volumen (%v/v): Volumen de soluto dividido por el volumen total, multiplicado por 100. Usado frecuentemente para mezclas de líquidos.\n\n6. Partes por millón (ppm) o partes por billón (ppb): Utilizadas para concentraciones muy bajas, como en análisis ambiental.\n\n La elección del tipo de concentración depende del contexto y aplicación específica del análisis químico.",
-  
-  "pureza": " La pureza de un reactivo indica el porcentaje de la sustancia deseada en la muestra. Para calcular la masa real de un reactivo, multiplica la masa total por el porcentaje de pureza. \n\n Por ejemplo, si tienes 10 gramos de un reactivo con 95% de pureza, la masa real de la sustancia activa sería 10g × 0.95 = 9.5g. \n\n Este cálculo es crucial en análisis cuantitativo y preparación de soluciones precisas. Los reactivos de alta pureza (>99%) se utilizan en investigación y análisis sensibles, mientras que reactivos de menor pureza pueden ser adecuados para aplicaciones educativas o industriales menos exigentes. \n\n Siempre verifica la pureza en la etiqueta del reactivo y ajusta tus cálculos en consecuencia para obtener resultados precisos en tus experimentos de laboratorio.",
-  
-  "estequiometría": " La estequiometría es el cálculo de las relaciones cuantitativas entre reactivos y productos en una reacción química, basándose en la ley de conservación de la masa. Este principio fundamental permite determinar las cantidades exactas de sustancias que participan en una reacción. \n\n El proceso para realizar cálculos estequiométricos incluye: \n1. Balancear la ecuación química para asegurar que el número de átomos de cada elemento sea igual en ambos lados\n2. Convertir masas a moles utilizando las masas molares\n3. Aplicar las proporciones molares de la ecuación balanceada\n4. Convertir de nuevo a unidades de masa si es necesario\n\n La estequiometría también permite calcular el rendimiento teórico, el rendimiento real y el porcentaje de rendimiento de una reacción, así como identificar el reactivo limitante que determina la cantidad máxima de producto que puede formarse.",
-  
-  "densidad papel": " Para calcular la densidad del papel, necesitas determinar su masa y volumen. Sigue estos pasos:\n\n1. Mide la masa del papel utilizando una balanza analítica (en gramos).\n2. Mide las dimensiones del papel: largo, ancho y espesor (en cm).\n3. Calcula el volumen multiplicando largo × ancho × espesor (en cm³).\n4. Calcula la densidad dividiendo la masa entre el volumen (g/cm³).\n\n La densidad típica del papel varía según el tipo:\n- Papel de impresión estándar: 0.7-0.9 g/cm³\n- Papel fotográfico: 1.0-1.4 g/cm³\n- Cartulina: 0.6-0.7 g/cm³\n\n Alternativamente, puedes usar el gramaje (g/m²) y el espesor (mm) para calcular la densidad con la fórmula: Densidad = Gramaje / (Espesor × 1000).",
-  
-  "ayuda": " ¡Hola! Soy AstroBot, tu asistente de laboratorio virtual diseñado para ayudarte con diversos aspectos de química y cálculos de laboratorio. Puedo asistirte con:\n\n Cálculos de masa molar: Determinar la masa molecular de compuestos químicos.\n\n Diluciones: Calcular concentraciones y volúmenes para preparar soluciones diluidas.\n\n Concentraciones: Explicar y calcular diferentes tipos de concentración (molaridad, molalidad, porcentajes, etc.).\n\n Pureza de reactivos: Ajustar cálculos considerando la pureza de los compuestos utilizados.\n\n Estequiometría: Realizar cálculos basados en ecuaciones químicas balanceadas.\n\n Conversiones de unidades: Transformar entre diferentes unidades de medida utilizadas en química.\n\n Propiedades físico-químicas: Proporcionar información sobre propiedades de elementos y compuestos.\n\n Puedes hacerme preguntas específicas sobre estos temas o solicitar ayuda para resolver problemas de laboratorio. ¿En qué puedo ayudarte hoy?",
-};
-
-/**
- * Obtiene un mensaje de bienvenida aleatorio
- * @returns {string} Mensaje de bienvenida
- */
-export const getWelcomeMessage = () => {
-  const welcomeMessages = [
-    " ¡Hola! Bienvenido a AstroBot, tu asistente de laboratorio personal. Estoy aquí para ayudarte con tus cálculos químicos, resolver dudas sobre reactivos, y asistirte en tus experimentos. ¿En qué puedo ayudarte hoy?",
-    " ¡Saludos científico! Soy AstroBot, tu asistente virtual de laboratorio. Puedo ayudarte con cálculos de masa molar, diluciones, concentraciones y mucho más. ¿Qué necesitas calcular hoy?",
-    " ¡Bienvenido al laboratorio virtual! Soy AstroBot, tu compañero de experimentos. Estoy listo para ayudarte con cualquier duda química o cálculo que necesites. ¿Por dónde quieres empezar?",
-    " ¡Hola! Soy AstroBot, tu asistente personal para todo lo relacionado con química y cálculos de laboratorio. ¿Tienes alguna pregunta sobre estequiometría, pureza de reactivos o preparación de soluciones?",
-  ];
-  
-  return welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
-};
-
-/**
- * Obtiene sugerencias de temas para el usuario
- * @returns {string} Mensaje con sugerencias
- */
-export const getSuggestionsMessage = () => {
-  return "Puedes preguntarme sobre:\n• Cálculos de masa molar\n• Diluciones y concentraciones\n• Pureza de reactivos\n• Estequiometría\n• Conversiones de unidades\n• Propiedades físico-químicas";
-};
-
-/**
- * Implementa un mecanismo de timeout para peticiones fetch
- * 
- * Esta función envuelve una promesa fetch con un timeout configurable
- * para evitar que las peticiones queden pendientes indefinidamente.
- * También implementa soporte para AbortController cuando está disponible.
- * 
- * @param {Promise|string|Object} fetchPromise - Promesa de fetch, URL o configuración
- * @param {number} timeoutMs - Tiempo de espera en milisegundos
- * @returns {Promise<Response>} - Promesa con la respuesta o error si excede el timeout
- * @throws {Error} - Error si la petición excede el tiempo de espera
- */
-const fetchWithTimeout = async (fetchPromise, timeoutMs = 10000) => {
-  // Asegurarse de que timeoutMs sea un número razonable
-  if (!timeoutMs || timeoutMs < 1000) {
-    timeoutMs = 10000; // Valor mínimo de 10 segundos
-    log(LOG_LEVELS.WARN, `Tiempo de espera demasiado corto, usando valor predeterminado: ${timeoutMs}ms`);
-  }
-  
-  let timeoutId;
-  let abortController;
-  
-  try {
-    // Si la API de AbortController está disponible, usarla
-    if (typeof AbortController !== 'undefined') {
-      abortController = new AbortController();
-      const signal = abortController.signal;
-      
-      // Convertir diferentes tipos de entrada a una promesa fetch con signal
-      if (typeof fetchPromise === 'string') {
-        // Si fetchPromise es una URL directa (string)
-        const url = fetchPromise;
-        fetchPromise = fetch(url, { signal });
-      } 
-      else if (typeof fetchPromise === 'object' && fetchPromise.url) {
-        // Si fetchPromise es un objeto de configuración
-        const { url, options = {} } = fetchPromise;
-        fetchPromise = fetch(url, {
-          ...options,
-          signal
-        });
-      }
-      // Si fetchPromise ya es una instancia de Promise (fetch ya ejecutado),
-      // no podemos agregar la señal, pero el timeout seguirá funcionando
-    }
-  
-    // Crear una promesa que se rechaza después de timeoutMs
-    const timeoutPromise = new Promise((_, reject) => {
-      timeoutId = setTimeout(() => {
-        // Abortar la solicitud si es posible
-        if (abortController) {
-          abortController.abort();
-        }
-        reject(new Error(`La solicitud excedió el tiempo de espera (${timeoutMs}ms)`));
-      }, timeoutMs);
-    });
-    
-    // Competir entre la promesa de fetch y la de timeout
-    return Promise.race([
-      // Envolver fetchPromise para limpiar el timeout cuando se resuelva
-      new Promise((resolve, reject) => {
-        Promise.resolve(fetchPromise)
-          .then(response => {
-            clearTimeout(timeoutId);
-            resolve(response);
-          })
-          .catch(error => {
-            clearTimeout(timeoutId);
-            reject(error);
-          });
-      }),
-      timeoutPromise
-    ]);
-  } catch (error) {
-    // Limpiar el timeout si ocurre un error
-    if (timeoutId) {
-      clearTimeout(timeoutId);
-    }
-    
-    // Registrar el error
-    log(LOG_LEVELS.ERROR, `Error en fetchWithTimeout: ${error.message}`, { error });
-    
-    // Propagar el error
-    throw error;
-  }
-};
-
-/**
- * Función para registrar mensajes en la consola
- * @param {string} level - Nivel de log (INFO, WARN, ERROR, DEBUG)
- * @param {string} message - Mensaje a registrar
- * @param {Object} data - Datos adicionales (opcional)
- */
-const log = (level, message, data = {}) => {
-  const timestamp = new Date().toISOString();
-  const prefix = `[AstroBot][${timestamp}][${level}]`;
-  
-  switch (level) {
-    case LOG_LEVELS.DEBUG:
-      console.debug(`${prefix} ${message}`, data);
-      break;
-    case LOG_LEVELS.INFO:
-      console.info(`${prefix} ${message}`, data);
-      break;
-    case LOG_LEVELS.WARN:
-      console.warn(`${prefix} ${message}`, data);
-      break;
-    case LOG_LEVELS.ERROR:
-      console.error(`${prefix} ${message}`, data);
-      break;
-    default:
-      console.log(`${prefix} ${message}`, data);
   }
 };
 
@@ -411,487 +272,664 @@ const log = (level, message, data = {}) => {
  *   - error: Mensaje de error (si hay un error)
  */
 export const checkBackendConnection = async (timeoutMs = 10000) => {
-  log(LOG_LEVELS.INFO, 'Verificando conexión con el backend');
+  log(LOG_LEVELS.INFO, 'Verificando conexión con el backend...');
+  
+  // Actualizar estado de conexión a "verificando"
+  connectionStatus = { ...connectionStatus, isChecking: true };
+  
+  // Lista de URLs para probar en orden de prioridad
+  const urlsToTry = [
+    DEPLOYED_URL,
+    `http://${LOCAL_IP}:${LOCAL_PORT}`,
+    `http://10.0.2.2:${LOCAL_PORT}`,
+    `http://10.0.3.2:${LOCAL_PORT}`,
+    `http://localhost:${LOCAL_PORT}`,
+    `http://127.0.0.1:${LOCAL_PORT}`
+  ];
+  
+  // Eliminar duplicados
+  const uniqueUrls = [...new Set(urlsToTry)];
+  
+  log(LOG_LEVELS.INFO, `Probando conexión con las siguientes URLs: ${uniqueUrls.join(', ')}`);
+  
+  // Crear un controlador de aborto para el timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
   
   try {
-    // Paso 1: Verificar conexión a internet
-    const netInfo = await NetInfo.fetch();
+    // Intentar conectar con cada URL hasta que una funcione
+    for (const url of uniqueUrls) {
+      try {
+        log(LOG_LEVELS.INFO, `Intentando conectar a: ${url}/status`);
+        
+        const response = await fetch(`${url}/status`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+          signal: controller.signal
+        });
+        
+        // Si la respuesta es exitosa, actualizar la URL base y el estado de conexión
+        if (response.ok) {
+          const data = await response.json();
+          log(LOG_LEVELS.SUCCESS, `Conexión exitosa a ${url}. Respuesta: ${JSON.stringify(data)}`);
+          
+          // Actualizar URL base global
+          API_BASE_URL = url;
+          
+          // Actualizar estado de conexión
+          connectionStatus = {
+            isConnected: true,
+            isSimulationMode: false,
+            isChecking: false,
+            url: url,
+            serverInfo: data
+          };
+          
+          // Limpiar el timeout y devolver el estado
+          clearTimeout(timeoutId);
+          return { ...connectionStatus };
+        } else {
+          log(LOG_LEVELS.WARNING, `Error en respuesta de ${url}: ${response.status} ${response.statusText}`);
+        }
+      } catch (urlError) {
+        log(LOG_LEVELS.WARNING, `No se pudo conectar a ${url}: ${urlError.message}`);
+        // Continuar con la siguiente URL
+      }
+    }
     
-    if (!netInfo.isConnected || !netInfo.isInternetReachable) {
-      log(LOG_LEVELS.WARN, 'No hay conexión a internet', { netInfo });
-      
-      // Actualizar estado de conexión
+    // Si llegamos aquí, no se pudo conectar a ninguna URL
+    log(LOG_LEVELS.WARNING, 'No se pudo conectar a ninguna URL. Activando modo simulación.');
+    
+    // Actualizar contador de fallos consecutivos
+    consecutiveFailures++;
+    
+    // Activar modo simulación después de cierto número de fallos
+    if (consecutiveFailures >= FAILURES_BEFORE_SIMULATION) {
       connectionStatus = {
-        ...connectionStatus,
-        isConnected: false,
-        lastChecked: new Date().toISOString(),
-        error: 'No hay conexión a internet',
-        consecutiveFailures: connectionStatus.consecutiveFailures + 1
-      };
-      
-      // Activar modo simulación
-      simulationMode = true;
-      
-      return {
         isConnected: false,
         isSimulationMode: true,
-        error: 'No hay conexión a internet. El bot está funcionando en modo simulación.'
-      };
-    }
-    
-    // Paso 2: Obtener la URL base apropiada
-    if (!API_BASE_URL) {
-      await initializeApiBaseUrl();
-    }
-    
-    // Paso 3: Intentar conectar con el backend
-    const startTime = Date.now();
-    
-    // Usar fetchWithTimeout para evitar que la solicitud se quede esperando indefinidamente
-    const fetchPromise = fetch(`${API_BASE_URL}/status`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json',
-      },
-    });
-    
-    const response = await fetchWithTimeout(fetchPromise, timeoutMs);
-    
-    // Calcular tiempo de respuesta
-    const responseTime = Date.now() - startTime;
-    
-    // Paso 4: Procesar la respuesta
-    if (response.ok) {
-      const data = await response.json();
-      
-      // Actualizar estado de conexión
-      connectionStatus = {
-        isConnected: true,
-        lastChecked: new Date().toISOString(),
-        lastResponseTime: responseTime,
-        error: null,
-        consecutiveFailures: 0,
-        serverVersion: data.version || 'desconocida',
-        serverStatus: data.status || 'ok'
-      };
-      
-      // Desactivar modo simulación si estaba activo
-      if (simulationMode) {
-        log(LOG_LEVELS.INFO, 'Desactivando modo simulación, conexión establecida');
-        simulationMode = false;
-      }
-      
-      log(LOG_LEVELS.INFO, `Conexión exitosa con el backend (${responseTime}ms)`, { 
-        url: API_BASE_URL,
-        serverVersion: connectionStatus.serverVersion,
-        serverStatus: connectionStatus.serverStatus
-      });
-      
-      return {
-        isConnected: true,
-        isSimulationMode: false,
-        responseTime,
-        serverVersion: connectionStatus.serverVersion,
-        serverStatus: connectionStatus.serverStatus
+        isChecking: false,
+        error: 'No se pudo conectar al backend después de múltiples intentos'
       };
     } else {
-      // La respuesta no fue exitosa
-      const errorText = await response.text();
-      const errorMessage = `Error en la respuesta del servidor: ${response.status} ${response.statusText}. ${errorText}`;
-      
-      log(LOG_LEVELS.ERROR, errorMessage, { 
-        url: API_BASE_URL,
-        status: response.status
-      });
-      
-      // Actualizar estado de conexión
       connectionStatus = {
-        ...connectionStatus,
         isConnected: false,
-        lastChecked: new Date().toISOString(),
-        error: errorMessage,
-        consecutiveFailures: connectionStatus.consecutiveFailures + 1
+        isSimulationMode: false,
+        isChecking: false,
+        error: 'No se pudo conectar al backend'
+      };
+    }
+    
+    return { ...connectionStatus };
+  } catch (error) {
+    // Manejar errores generales (incluyendo timeout)
+    const errorMessage = error.name === 'AbortError' 
+      ? 'Tiempo de espera agotado al conectar con el backend' 
+      : `Error al verificar conexión: ${error.message}`;
+    
+    log(LOG_LEVELS.ERROR, errorMessage);
+    
+    // Actualizar contador de fallos consecutivos
+    consecutiveFailures++;
+    
+    // Activar modo simulación después de cierto número de fallos
+    connectionStatus = {
+      isConnected: false,
+      isSimulationMode: consecutiveFailures >= FAILURES_BEFORE_SIMULATION,
+      isChecking: false,
+      error: errorMessage
+    };
+    
+    return { ...connectionStatus };
+  } finally {
+    // Asegurar que el timeout se limpie
+    clearTimeout(timeoutId);
+  }
+};
+
+/**
+ * Envía un mensaje al backend y obtiene la respuesta
+ * @param {string} message - Mensaje a enviar
+ * @param {string} sessionId - ID de sesión
+ * @returns {Promise<Object>} - Respuesta del backend
+ */
+export const sendMessage = async (message, sessionId) => {
+  log(LOG_LEVELS.INFO, `Enviando mensaje al backend: "${message.substring(0, 50)}${message.length > 50 ? '...' : ''}"`);
+  
+  try {
+    // Verificar si hay conexión con el backend
+    if (!connectionStatus.isConnected && !connectionStatus.isSimulationMode) {
+      // Intentar reconectar
+      await checkBackendConnection();
+    }
+    
+    // Si estamos en modo simulación, generar respuesta simulada
+    if (connectionStatus.isSimulationMode) {
+      log(LOG_LEVELS.INFO, 'Usando modo simulación para respuesta');
+      const simulatedResponse = await simulateResponse(message);
+      return {
+        text: simulatedResponse,
+        model: 'simulación',
+        sessionId: sessionId || 'local_session',
+        timestamp: new Date().toISOString()
+      };
+    }
+    
+    // Determinar la URL base a utilizar
+    const baseUrl = API_BASE_URL || await getAppropriateBaseUrl();
+    const isDeployed = baseUrl === DEPLOYED_URL;
+    const timeout = isDeployed ? DEPLOYED_TIMEOUT : LOCAL_TIMEOUT;
+    
+    log(LOG_LEVELS.INFO, `Usando ${isDeployed ? 'URL desplegada' : 'URL local'} (${baseUrl}) con timeout de ${timeout}ms`);
+    
+    // Crear un controlador de aborto para el timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+      log(LOG_LEVELS.WARNING, `Timeout alcanzado (${timeout}ms) al enviar mensaje a ${baseUrl}`);
+    }, timeout);
+    
+    try {
+      // Preparar los datos para la solicitud
+      const requestData = {
+        message: message,
+        sessionId: sessionId
       };
       
-      // Activar modo simulación después de 3 fallos consecutivos
-      if (connectionStatus.consecutiveFailures >= 3 && !simulationMode) {
-        log(LOG_LEVELS.WARN, 'Activando modo simulación después de fallos consecutivos');
-        simulationMode = true;
+      log(LOG_LEVELS.INFO, `Enviando POST a ${baseUrl}/chat con sessionId: ${sessionId}`);
+      
+      // Enviar solicitud al backend
+      const response = await fetch(`${baseUrl}/chat`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(requestData),
+        signal: controller.signal
+      });
+      
+      // Limpiar el timeout
+      clearTimeout(timeoutId);
+      
+      // Verificar si la respuesta es exitosa
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(`Error del servidor: ${response.status} ${response.statusText}. ${errorData}`);
       }
       
+      // Procesar la respuesta
+      const data = await response.json();
+      
+      // Verificar si la respuesta contiene un mensaje
+      if (!data.message && !data.response) {
+        throw new Error('Respuesta inválida del servidor: no contiene mensaje');
+      }
+      
+      // Extraer el mensaje (algunos backends usan 'message', otros 'response')
+      const responseText = data.message || data.response;
+      
+      log(LOG_LEVELS.SUCCESS, `Respuesta recibida del backend (${responseText.length} caracteres)`);
+      
       return {
-        isConnected: false,
-        isSimulationMode: simulationMode,
-        error: errorMessage
+        text: responseText,
+        model: data.model || 'desconocido',
+        sessionId: data.sessionId || sessionId,
+        timestamp: new Date().toISOString()
+      };
+    } catch (fetchError) {
+      // Limpiar el timeout si aún está activo
+      clearTimeout(timeoutId);
+      
+      // Si es un error de timeout, intentar con la otra URL
+      if (fetchError.name === 'AbortError') {
+        const alternativeUrl = baseUrl === DEPLOYED_URL ? `http://${LOCAL_IP}:${LOCAL_PORT}` : DEPLOYED_URL;
+        log(LOG_LEVELS.WARNING, `Timeout con ${baseUrl}, intentando con URL alternativa: ${alternativeUrl}`);
+        
+        try {
+          const alternativeResponse = await fetch(`${alternativeUrl}/chat`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            body: JSON.stringify({
+              message: message,
+              sessionId: sessionId
+            }),
+            timeout: baseUrl === DEPLOYED_URL ? LOCAL_TIMEOUT : DEPLOYED_TIMEOUT
+          });
+          
+          if (alternativeResponse.ok) {
+            const alternativeData = await alternativeResponse.json();
+            
+            // Actualizar URL base para futuras solicitudes
+            API_BASE_URL = alternativeUrl;
+            
+            log(LOG_LEVELS.SUCCESS, `Respuesta recibida de URL alternativa: ${alternativeUrl}`);
+            
+            // Extraer el mensaje (algunos backends usan 'message', otros 'response')
+            const responseText = alternativeData.message || alternativeData.response;
+            
+            return {
+              text: responseText,
+              model: alternativeData.model || 'desconocido',
+              sessionId: alternativeData.sessionId || sessionId,
+              timestamp: new Date().toISOString()
+            };
+          }
+        } catch (alternativeError) {
+          log(LOG_LEVELS.ERROR, `Error al intentar con URL alternativa: ${alternativeError.message}`);
+          // Continuar con el flujo de error
+        }
+      }
+      
+      // Manejar el error original
+      throw fetchError;
+    }
+  } catch (error) {
+    log(LOG_LEVELS.ERROR, `Error al enviar mensaje: ${error.message}`);
+    
+    // Activar modo simulación después de error
+    connectionStatus.isSimulationMode = true;
+    
+    // Generar respuesta de error
+    return {
+      text: `Lo siento, ha ocurrido un error al procesar tu mensaje: ${error.message}. Estoy funcionando en modo offline con capacidades limitadas.`,
+      model: 'simulación',
+      sessionId: sessionId || 'error_session',
+      timestamp: new Date().toISOString(),
+      isError: true
+    };
+  }
+};
+
+/**
+ * Obtiene el mensaje de bienvenida del backend
+ * @returns {Promise<Object>} - Mensaje de bienvenida
+ */
+export const getWelcomeMessage = async () => {
+  try {
+    // Verificar si hay conexión con el backend
+    if (!connectionStatus.isConnected && !connectionStatus.isSimulationMode) {
+      // Intentar reconectar
+      await checkBackendConnection();
+    }
+    
+    // Si estamos en modo simulación, devolver mensaje predeterminado
+    if (connectionStatus.isSimulationMode) {
+      log(LOG_LEVELS.INFO, 'Usando mensaje de bienvenida predeterminado (modo simulación)');
+      return {
+        text: '¡Hola! Soy AstroBot, tu asistente especializado en química y cálculos de laboratorio. Actualmente estoy funcionando en modo offline con capacidades limitadas.',
+        model: 'simulación',
+        isWelcome: true,
+        isError: true
+      };
+    }
+    
+    // Determinar la URL base a utilizar
+    const baseUrl = API_BASE_URL || await getAppropriateBaseUrl();
+    const isDeployed = baseUrl === DEPLOYED_URL;
+    const timeout = isDeployed ? DEPLOYED_TIMEOUT : LOCAL_TIMEOUT;
+    
+    log(LOG_LEVELS.INFO, `Obteniendo mensaje de bienvenida desde ${isDeployed ? 'URL desplegada' : 'URL local'} (${baseUrl}) con timeout de ${timeout}ms`);
+    
+    // Crear un controlador de aborto para el timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => {
+      controller.abort();
+      log(LOG_LEVELS.WARNING, `Timeout alcanzado (${timeout}ms) al obtener mensaje de bienvenida de ${baseUrl}`);
+    }, timeout);
+    
+    try {
+      // Enviar solicitud al backend
+      const response = await fetch(`${baseUrl}/welcome`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        signal: controller.signal
+      });
+      
+      // Limpiar el timeout
+      clearTimeout(timeoutId);
+      
+      // Verificar si la respuesta es exitosa
+      if (!response.ok) {
+        const errorData = await response.text();
+        throw new Error(`Error del servidor: ${response.status} ${response.statusText}. ${errorData}`);
+      }
+      
+      // Procesar la respuesta
+      const data = await response.json();
+      
+      // Verificar si la respuesta contiene un mensaje
+      if (!data.message && !data.welcome_message) {
+        throw new Error('Respuesta inválida del servidor: no contiene mensaje de bienvenida');
+      }
+      
+      // Extraer el mensaje (algunos backends usan 'message', otros 'welcome_message')
+      const welcomeText = data.message || data.welcome_message;
+      
+      log(LOG_LEVELS.SUCCESS, `Mensaje de bienvenida recibido del backend (${welcomeText.length} caracteres)`);
+      
+      return {
+        text: welcomeText,
+        model: data.model || 'desconocido',
+        isWelcome: true
+      };
+    } catch (fetchError) {
+      // Limpiar el timeout si aún está activo
+      clearTimeout(timeoutId);
+      
+      // Si es un error de timeout, intentar con la otra URL
+      if (fetchError.name === 'AbortError') {
+        const alternativeUrl = baseUrl === DEPLOYED_URL ? `http://${LOCAL_IP}:${LOCAL_PORT}` : DEPLOYED_URL;
+        log(LOG_LEVELS.WARNING, `Timeout con ${baseUrl}, intentando con URL alternativa: ${alternativeUrl}`);
+        
+        try {
+          const alternativeResponse = await fetch(`${alternativeUrl}/welcome`, {
+            method: 'GET',
+            headers: {
+              'Content-Type': 'application/json',
+              'Accept': 'application/json'
+            },
+            timeout: baseUrl === DEPLOYED_URL ? LOCAL_TIMEOUT : DEPLOYED_TIMEOUT
+          });
+          
+          if (alternativeResponse.ok) {
+            const alternativeData = await alternativeResponse.json();
+            
+            // Actualizar URL base para futuras solicitudes
+            API_BASE_URL = alternativeUrl;
+            
+            log(LOG_LEVELS.SUCCESS, `Mensaje de bienvenida recibido de URL alternativa: ${alternativeUrl}`);
+            
+            // Extraer el mensaje (algunos backends usan 'message', otros 'welcome_message')
+            const welcomeText = alternativeData.message || alternativeData.welcome_message;
+            
+            return {
+              text: welcomeText,
+              model: alternativeData.model || 'desconocido',
+              isWelcome: true
+            };
+          }
+        } catch (alternativeError) {
+          log(LOG_LEVELS.ERROR, `Error al intentar con URL alternativa: ${alternativeError.message}`);
+          // Continuar con el flujo de error
+        }
+      }
+      
+      // Manejar el error original
+      throw fetchError;
+    }
+  } catch (error) {
+    log(LOG_LEVELS.ERROR, `Error al obtener mensaje de bienvenida: ${error.message}`);
+    
+    // Activar modo simulación después de error
+    connectionStatus.isSimulationMode = true;
+    
+    // Devolver mensaje predeterminado
+    return {
+      text: '¡Hola! Soy AstroBot, tu asistente especializado en química y cálculos de laboratorio. Estoy funcionando en modo offline con capacidades limitadas debido a un problema de conexión.',
+      model: 'simulación',
+      isWelcome: true,
+      isError: true
+    };
+  }
+};
+
+/**
+ * Simula una respuesta del backend cuando no hay conexión
+ * @param {string} message - Mensaje del usuario
+ * @returns {Object} - Respuesta simulada
+ */
+const simulateResponse = (message) => {
+  // Normalizar el mensaje para comparación
+  const normalizedMessage = message.toLowerCase().trim();
+  
+  // Respuestas predefinidas para preguntas comunes
+  if (normalizedMessage.includes('hola') || normalizedMessage.includes('saludos') || normalizedMessage.includes('buenos días')) {
+    return {
+      text: '¡Hola! Soy AstroBot, tu asistente especializado en química y cálculos de laboratorio. Estoy en modo simulación porque no puedo conectarme al servidor. ¿En qué puedo ayudarte?',
+      model: 'simulación',
+      isError: false
+    };
+  } else if (normalizedMessage.includes('masa molar') || normalizedMessage.includes('peso molecular')) {
+    return {
+      text: 'Para calcular la masa molar de un compuesto, necesitas sumar las masas atómicas de todos los átomos en la molécula. Por ejemplo, para H₂O: (2 × 1.008) + 16.00 = 18.016 g/mol. Estoy en modo simulación, así que no puedo hacer cálculos específicos en este momento.',
+      model: 'simulación',
+      isError: false
+    };
+  } else if (normalizedMessage.includes('dilución') || normalizedMessage.includes('concentración')) {
+    return {
+      text: 'Para calcular diluciones, puedes usar la fórmula C₁V₁ = C₂V₂, donde C es concentración y V es volumen. Estoy en modo simulación, así que no puedo hacer cálculos específicos en este momento.',
+      model: 'simulación',
+      isError: false
+    };
+  } else if (normalizedMessage.includes('estequiometría') || normalizedMessage.includes('balanceo')) {
+    return {
+      text: 'La estequiometría se basa en la ley de conservación de la masa. Para balancear ecuaciones, debes asegurarte de que el número de átomos de cada elemento sea igual en ambos lados. Estoy en modo simulación, así que no puedo hacer balanceos específicos en este momento.',
+      model: 'simulación',
+      isError: false
+    };
+  } else if (normalizedMessage.includes('pureza') || normalizedMessage.includes('reactivo')) {
+    return {
+      text: 'La pureza de un reactivo indica el porcentaje del compuesto deseado en la muestra. Para calcular la cantidad real de sustancia, multiplica la masa total por el porcentaje de pureza. Estoy en modo simulación, así que no puedo hacer cálculos específicos en este momento.',
+      model: 'simulación',
+      isError: false
+    };
+  } else {
+    // Respuesta genérica para otras preguntas
+    return {
+      text: 'Estoy en modo simulación porque no puedo conectarme al servidor. En modo normal, podría ayudarte con cálculos de masa molar, diluciones, estequiometría, pureza de reactivos y propiedades físico-químicas. Por favor, verifica la conexión con el servidor e intenta nuevamente.',
+      model: 'simulación',
+      isError: false
+    };
+  }
+};
+
+/**
+ * Función para registrar mensajes de log
+ * @param {string} level - Nivel de log (INFO, WARN, ERROR, DEBUG)
+ * @param {string} message - Mensaje a registrar
+ * @param {Object} data - Datos adicionales para el log
+ */
+const log = (level, message, data = {}) => {
+  const timestamp = new Date().toISOString();
+  const logEntry = {
+    timestamp,
+    level,
+    message,
+    ...data
+  };
+  
+  // Registrar en la consola
+  switch (level) {
+    case LOG_LEVELS.ERROR:
+      console.error(`[${timestamp}] ${level}: ${message}`, data);
+      break;
+    case LOG_LEVELS.WARN:
+      console.warn(`[${timestamp}] ${level}: ${message}`, data);
+      break;
+    case LOG_LEVELS.INFO:
+      console.info(`[${timestamp}] ${level}: ${message}`, data);
+      break;
+    case LOG_LEVELS.DEBUG:
+      console.debug(`[${timestamp}] ${level}: ${message}`, data);
+      break;
+    default:
+      console.log(`[${timestamp}] ${level}: ${message}`, data);
+  }
+  
+  // TODO: Implementar almacenamiento de logs si es necesario
+};
+
+/**
+ * Obtiene el estado actual de la conexión
+ * @returns {Object} - Estado actual de la conexión
+ */
+export const getConnectionStatus = () => {
+  return { ...connectionStatus };
+};
+
+/**
+ * Obtiene la URL base actual del API
+ * @returns {Promise<string>} - URL base actual
+ */
+export const getApiBaseUrl = async () => {
+  if (!API_BASE_URL) {
+    await initializeApiBaseUrl();
+  }
+  return API_BASE_URL;
+};
+
+/**
+ * Establece una nueva URL base para el API
+ * @param {string} url - Nueva URL base
+ * @param {boolean} testConnection - Indica si se debe probar la conexión con la nueva URL
+ * @returns {Promise<Object>} - Resultado de la operación
+ */
+export const setApiBaseUrl = async (url, testConnection = true) => {
+  try {
+    if (!url) {
+      return {
+        success: false,
+        message: 'La URL no puede estar vacía',
+        previousUrl: API_BASE_URL
+      };
+    }
+    
+    log(LOG_LEVELS.INFO, `Cambiando URL base de ${API_BASE_URL || 'undefined'} a ${url}`);
+    
+    // Guardar la URL anterior para restaurarla en caso de error
+    const previousUrl = API_BASE_URL;
+    
+    // Establecer la nueva URL
+    API_BASE_URL = url;
+    
+    // Si se debe probar la conexión
+    if (testConnection) {
+      try {
+        // Probar la conexión con la nueva URL
+        const connectionResult = await checkBackendConnection();
+        
+        if (connectionResult.isConnected) {
+          // Si la conexión es exitosa, guardar la nueva URL
+          await AsyncStorage.setItem('API_BASE_URL', API_BASE_URL);
+          
+          // Guardar la IP del servidor para futuras sesiones
+          const serverIP = url.replace(/^https?:\/\//, '').replace(/:.*$/, '');
+          await AsyncStorage.setItem('SERVER_IP', serverIP);
+          
+          return {
+            success: true,
+            message: 'URL actualizada y conexión establecida correctamente',
+            connectionStatus: connectionResult
+          };
+        } else {
+          // Si la conexión falla, restaurar la URL anterior
+          log(LOG_LEVELS.WARN, `Fallo al conectar con ${url}, restaurando URL anterior: ${previousUrl}`);
+          API_BASE_URL = previousUrl;
+          
+          return {
+            success: false,
+            message: `No se pudo establecer conexión con ${url}: ${connectionResult.error}`,
+            connectionStatus: connectionResult,
+            previousUrl
+          };
+        }
+      } catch (error) {
+        // Si hay un error al probar la conexión, restaurar la URL anterior
+        log(LOG_LEVELS.ERROR, `Error al probar conexión con ${url}: ${error.message}`);
+        API_BASE_URL = previousUrl;
+        
+        return {
+          success: false,
+          message: `Error al probar conexión: ${error.message}`,
+          previousUrl
+        };
+      }
+    } else {
+      // Si no se debe probar la conexión, guardar la nueva URL directamente
+      await AsyncStorage.setItem('API_BASE_URL', API_BASE_URL);
+      
+      return {
+        success: true,
+        message: 'URL actualizada sin probar conexión',
+        connectionStatus: getConnectionStatus()
       };
     }
   } catch (error) {
-    // Capturar cualquier error durante el proceso
-    log(LOG_LEVELS.ERROR, `Error al verificar conexión: ${error.message}`, { error });
-    
-    // Actualizar estado de conexión
-    connectionStatus = {
-      ...connectionStatus,
-      isConnected: false,
-      lastChecked: new Date().toISOString(),
-      error: error.message,
-      consecutiveFailures: connectionStatus.consecutiveFailures + 1
-    };
-    
-    // Activar modo simulación después de 3 fallos consecutivos
-    if (connectionStatus.consecutiveFailures >= 3 && !simulationMode) {
-      log(LOG_LEVELS.WARN, 'Activando modo simulación después de fallos consecutivos');
-      simulationMode = true;
-    }
+    log(LOG_LEVELS.ERROR, `Error al establecer URL base: ${error.message}`);
     
     return {
-      isConnected: false,
-      isSimulationMode: simulationMode,
+      success: false,
+      message: `Error al establecer URL base: ${error.message}`
+    };
+  }
+};
+
+/**
+ * Inicia una nueva sesión de AstroBot
+ * @returns {Promise<Object>} - Datos de la sesión
+ */
+export const startAstroBotSession = async () => {
+  try {
+    // Generar un ID de sesión único
+    const sessionId = `session_${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+    
+    log(LOG_LEVELS.INFO, `Iniciando nueva sesión de AstroBot: ${sessionId}`);
+    
+    // Guardar el ID de sesión en AsyncStorage
+    await AsyncStorage.setItem('ASTROBOT_SESSION_ID', sessionId);
+    
+    return {
+      sessionId,
+      startTime: new Date().toISOString(),
+      success: true
+    };
+  } catch (error) {
+    log(LOG_LEVELS.ERROR, `Error al iniciar sesión de AstroBot: ${error.message}`);
+    
+    // Devolver un ID de sesión local en caso de error
+    return {
+      sessionId: `local_${Date.now()}`,
+      startTime: new Date().toISOString(),
+      success: false,
       error: error.message
     };
   }
 };
 
 /**
- * Inicia una nueva sesión de chat con AstroBot
- * @returns {Promise<string>} - ID de la sesión
+ * Obtiene un mensaje con sugerencias para el usuario
+ * @returns {string} - Mensaje con sugerencias
  */
-export const startAstroBotSession = async () => {
-  log(LOG_LEVELS.INFO, 'Iniciando nueva sesión de AstroBot');
-  
-  // Verificar la conexión con el backend
-  const isConnected = await checkBackendConnection(10000); // Aumentar el tiempo de espera
-  
-  // Generar un ID de sesión único
-  const sessionId = `session_${Date.now()}_${Math.random().toString(36).substring(2, 9)}`;
-  
-  log(LOG_LEVELS.INFO, `Nueva sesión iniciada: ${sessionId}`, { 
-    isConnected, 
-    simulationMode 
-  });
-  
-  return sessionId;
+export const getSuggestionsMessage = () => {
+  return "Puedo ayudarte con:\n\n" +
+    "• Cálculos de masa molar de compuestos\n" +
+    "• Diluciones y concentraciones\n" +
+    "• Cálculos de pureza de reactivos\n" +
+    "• Estequiometría y balanceo de ecuaciones\n" +
+    "• Propiedades físico-químicas de elementos\n\n" +
+    "¿Con qué puedo ayudarte hoy?";
 };
 
-/**
- * Obtiene la lista de modelos disponibles desde el backend
- * @returns {Promise<Array>} - Lista de modelos disponibles
- */
-export const getAvailableModels = async () => {
-  log(LOG_LEVELS.INFO, 'Obteniendo lista de modelos disponibles');
-  
+// Inicializar el servicio
+(async () => {
   try {
-    const response = await fetchWithTimeout(
-      fetch(`${API_BASE_URL}/models`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-      }),
-      5000
-    );
-    
-    if (!response.ok) {
-      throw new Error(`Error al obtener modelos: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    log(LOG_LEVELS.INFO, 'Modelos obtenidos correctamente', { 
-      count: data.models ? data.models.length : 0 
-    });
-    
-    return {
-      models: data.models || [],
-      default: data.default || ''
-    };
+    await initializeApiBaseUrl();
+    await checkBackendConnection();
   } catch (error) {
-    log(LOG_LEVELS.ERROR, `Error al obtener modelos: ${error.message}`, { error });
-    // Proporcionar modelos simulados cuando no hay conexión
-    return {
-      models: ['GPT-3.5-Turbo', 'GPT-4', 'Claude-3-Opus'],
-      default: 'GPT-3.5-Turbo'
-    };
+    log(LOG_LEVELS.ERROR, `Error al inicializar AstroBotService: ${error.message}`);
   }
-};
+})();
 
-/**
- * Envía un mensaje a AstroBot y recibe una respuesta
- * @param {string} message - Mensaje a enviar
- * @param {string} sessionId - ID de la sesión (opcional)
- * @returns {Promise<Object>} - Respuesta del bot
- */
-export const sendMessageToAstroBot = async (message, sessionId = null) => {
-  log(LOG_LEVELS.INFO, 'Enviando mensaje a AstroBot', { message, sessionId });
-  
-  // Si estamos en modo simulación, devolver una respuesta simulada
-  if (simulationMode) {
-    log(LOG_LEVELS.INFO, 'Usando modo de simulación para respuesta', { simulationMode });
-    
-    // Simular un retraso realista
-    await new Promise(resolve => setTimeout(resolve, 500 + Math.random() * 1000));
-    
-    const simulatedResponse = getSimulatedResponse(message);
-    return {
-      message: simulatedResponse,
-      timestamp: new Date().toISOString(),
-      sessionId,
-      simulated: true,
-      model: "simulación"
-    };
-  }
-  
-  try {
-    const payload = {
-      message,
-      ...(sessionId && { sessionId })
-    };
-    
-    // Usamos fetchWithTimeout para limitar el tiempo de espera a 30 segundos (aumentado de 10 segundos)
-    const fetchPromise = fetch(`${API_BASE_URL}/chat`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(payload),
-    });
-    
-    const response = await fetchWithTimeout(fetchPromise, 30000); // Aumentado a 30 segundos
-    
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({ message: 'Error desconocido' }));
-      log(LOG_LEVELS.ERROR, `Error al enviar mensaje: ${errorData.message || 'Error desconocido'}`, {
-        status: response.status,
-        message
-      });
-      
-      // Si hay un error, activar modo simulación y devolver una respuesta simulada
-      simulationMode = true;
-      
-      // Determinar el tipo de error para proporcionar un mensaje más informativo
-      let errorMessage = "Lo siento, no pude procesar tu solicitud en este momento.";
-      
-      if (error.message.includes('tiempo de espera')) {
-        errorMessage = "Lo siento, la respuesta está tardando demasiado. Por favor, intenta con una pregunta más corta o específica.";
-      } else if (error.message.includes('NetworkError') || error.message.includes('Failed to fetch')) {
-        errorMessage = "No puedo conectarme al servidor en este momento. Estoy trabajando en modo sin conexión.";
-      }
-      
-      // Intentar obtener una respuesta simulada, pero si no hay coincidencia, usar el mensaje de error
-      const simulatedResponse = getSimulatedResponse(message) || errorMessage;
-      
-      return {
-        message: simulatedResponse,
-        timestamp: new Date().toISOString(),
-        sessionId,
-        simulated: true,
-        model: "simulación"
-      };
-    }
-    
-    const responseData = await response.json();
-    log(LOG_LEVELS.INFO, 'Mensaje enviado correctamente, respuesta recibida', { 
-      responseLength: responseData.response ? responseData.response.length : 0,
-      status: responseData.status
-    });
-    
-    // Adaptar el formato de respuesta al esperado por el componente
-    return {
-      message: responseData.response || 'No se recibió respuesta del servidor',
-      timestamp: new Date().toISOString(),
-      sessionId,
-      simulated: false,
-      model: responseData.model || "DeepSeek R1 Zero Base"
-    };
-  } catch (error) {
-    log(LOG_LEVELS.ERROR, `Error al enviar mensaje: ${error.message}`, { error, message });
-    
-    // Si hay un error, activar modo simulación y devolver una respuesta simulada
-    
-    // Determinar el tipo de error para proporcionar un mensaje más informativo
-    let errorMessage = "Lo siento, no pude procesar tu solicitud en este momento.";
-    
-    if (error.message.includes('tiempo de espera')) {
-      errorMessage = "Lo siento, la respuesta está tardando demasiado. Por favor, intenta con una pregunta más corta o específica.";
-    } else if (error.message.includes('NetworkError') || error.message.includes('Failed to fetch')) {
-      errorMessage = "No puedo conectarme al servidor en este momento. Estoy trabajando en modo sin conexión.";
-    }
-    
-    // Activar modo simulación
-    simulationMode = true;
-    
-    // Intentar obtener una respuesta simulada, pero si no hay coincidencia, usar el mensaje de error
-    const simulatedResponse = getSimulatedResponse(message) || errorMessage;
-    
-    return {
-      message: simulatedResponse,
-      timestamp: new Date().toISOString(),
-      sessionId,
-      simulated: true,
-      model: "simulación"
-    };
-  }
-};
-
-/**
- * Finaliza una sesión de chat con AstroBot
- * @param {string} sessionId - ID de la sesión a finalizar
- * @returns {Promise<boolean>} - true si la sesión se finalizó correctamente
- */
-export const endAstroBotSession = async (sessionId) => {
-  log(LOG_LEVELS.INFO, `Finalizando sesión: ${sessionId}`);
-  
-  // En esta implementación simple, no necesitamos hacer nada especial para finalizar la sesión
-  // En una implementación más compleja, podríamos enviar una solicitud al backend
-  
-  return true;
-};
-
-/**
- * Función para cambiar la URL del API dinámicamente
- * @param {string} url - URL del API
- * @param {boolean} testConnection - Si se debe probar la conexión con la nueva URL
- * @returns {Promise<Object>} - Objeto con el resultado de la operación
- */
-export const setApiBaseUrl = async (url, testConnection = true) => {
-  if (!url || url.trim() === '') {
-    return {
-      success: false,
-      message: 'La URL no puede estar vacía',
-      connectionStatus: null
-    };
-  }
-
-  const newUrl = url.trim();
-  
-  // Guardar la URL anterior para poder restaurarla en caso de error
-  const previousUrl = API_BASE_URL;
-  
-  // Actualizar la URL
-  API_BASE_URL = newUrl;
-  
-  // Si no queremos probar la conexión, solo guardar la URL
-  if (!testConnection) {
-    try {
-      await AsyncStorage.setItem('API_BASE_URL', API_BASE_URL);
-      log(LOG_LEVELS.INFO, `API URL actualizada: ${API_BASE_URL}`);
-      return {
-        success: true,
-        message: 'URL actualizada correctamente',
-        connectionStatus: null
-      };
-    } catch (error) {
-      log(LOG_LEVELS.ERROR, `Error al guardar API URL: ${error.message}`);
-      return {
-        success: false,
-        message: `Error al guardar URL: ${error.message}`,
-        connectionStatus: null
-      };
-    }
-  }
-  
-  // Probar la conexión con la nueva URL
-  log(LOG_LEVELS.INFO, `Probando conexión con la nueva URL: ${API_BASE_URL}`);
-  
-  try {
-    // Intentar conectar con el backend
-    const connectionResult = await checkBackendConnection(10000);
-    
-    if (connectionResult.isConnected) {
-      // Si la conexión es exitosa, guardar la URL
-      try {
-        await AsyncStorage.setItem('API_BASE_URL', API_BASE_URL);
-        log(LOG_LEVELS.INFO, `API URL actualizada y verificada: ${API_BASE_URL}`);
-        
-        // Guardar también el estado del emulador si estamos en uno
-        const isEmu = await isEmulator();
-        await AsyncStorage.setItem('IS_EMULATOR', String(isEmu));
-        
-        return {
-          success: true,
-          message: 'URL actualizada y conexión verificada correctamente',
-          connectionStatus: connectionResult
-        };
-      } catch (error) {
-        log(LOG_LEVELS.ERROR, `Error al guardar API URL: ${error.message}`);
-        return {
-          success: false,
-          message: `Error al guardar la URL: ${error.message}`,
-          connectionStatus: connectionResult
-        };
-      }
-    } else {
-      // Si la conexión falla, restaurar la URL anterior
-      log(LOG_LEVELS.WARN, `No se pudo conectar con la URL: ${API_BASE_URL}`);
-      API_BASE_URL = previousUrl;
-      
-      return {
-        success: false,
-        message: `No se pudo conectar con la URL: ${connectionResult.error || 'Error desconocido'}`,
-        connectionStatus: connectionResult
-      };
-    }
-  } catch (error) {
-    // Si hay un error al probar la conexión, restaurar la URL anterior
-    log(LOG_LEVELS.ERROR, `Error al probar conexión: ${error.message}`);
-    API_BASE_URL = previousUrl;
-    
-    return {
-      success: false,
-      message: `Error al probar la conexión: ${error.message}`,
-      connectionStatus: null
-    };
-  }
-};
-
-/**
- * Función para obtener una respuesta simulada basada en palabras clave
- * @param {string} message - Mensaje del usuario
- * @returns {string} - Respuesta simulada
- */
-const getSimulatedResponse = (message) => {
-  // Convertir mensaje a minúsculas para búsqueda de palabras clave
-  const lowerMessage = message.toLowerCase();
-  
-  // Buscar palabras clave en el mensaje
-  for (const [keyword, response] of Object.entries(KEYWORD_RESPONSES)) {
-    if (lowerMessage.includes(keyword)) {
-      // Asegurar que la respuesta no exceda el límite máximo
-      if (response.length > MAX_RESPONSE_LENGTH) {
-        return response.substring(0, MAX_RESPONSE_LENGTH);
-      }
-      return response;
-    }
-  }
-  
-  // Si no hay coincidencias de palabras clave, devolver una respuesta genérica
-  const genericResponse = SIMULATED_RESPONSES[Math.floor(Math.random() * SIMULATED_RESPONSES.length)];
-  
-  // Asegurar que la respuesta no exceda el límite máximo
-  if (genericResponse.length > MAX_RESPONSE_LENGTH) {
-    return genericResponse.substring(0, MAX_RESPONSE_LENGTH);
-  }
-  return genericResponse;
-};
-
-// Inicializar la URL base
-initializeApiBaseUrl().catch(error => {
-  console.error('Error al inicializar API_BASE_URL:', error);
-});
-
-// Mostrar la URL configurada
-console.log('AstroBot API URL:', API_BASE_URL);
-
-// Exportar un objeto con todas las funciones
-export default {
-  checkBackendConnection,
-  getConnectionStatus,
-  startAstroBotSession,
-  getAvailableModels,
-  sendMessageToAstroBot,
-  endAstroBotSession,
-  getWelcomeMessage,
-  getSuggestionsMessage,
-  setApiBaseUrl,
-  getApiBaseUrl
+// Exportar funciones y constantes
+export {
+  simulationMode,
+  API_BASE_URL,
+  initializeApiBaseUrl
 };
